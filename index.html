@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Observability Stack with OpenTelemetry — Built From Scratch</title>
+<meta name="description" content="An original from-scratch build of an observability stack: an OpenTelemetry Collector feeding host metrics into a Grafana LGTM (Loki, Grafana, Tempo, Mimir) backend via Docker." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --accent:#7c3aed; --accent-soft:#f1ebfe; --ink:#16201f; --muted:#5d6b69;
+    --line:#dfe5e3; --bg:#fbfcfb; --card:#ffffff;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 28px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);padding:.1em .4em;border-radius:4px;color:#6429c9}
+  h1,h2,h3{font-family:var(--serif);font-weight:500;line-height:1.15;letter-spacing:-.01em}
+  /* Header */
+  header.hero{padding:88px 0 56px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:0 0 22px}
+  h1{font-size:clamp(2.6rem,6vw,4.1rem);margin:0 0 18px}
+  .lede{font-size:1.22rem;color:var(--muted);max-width:62ch;margin:0 0 28px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.82rem}
+  .chip{font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;border:1px solid var(--line);border-radius:999px;padding:5px 12px;color:var(--muted);background:var(--card)}
+  /* Sections */
+  section{padding:54px 0;border-bottom:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+  h2{font-size:clamp(1.7rem,3.4vw,2.3rem);margin:0 0 20px}
+  h3{font-size:1.2rem;margin:0 0 6px}
+  p{margin:0 0 18px;max-width:68ch}
+  .muted{color:var(--muted)}
+  /* Stack grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:8px}
+  .tool{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .tool .t{font-family:var(--mono);font-size:.78rem;color:var(--accent);letter-spacing:.04em;margin-bottom:8px}
+  .tool h3{font-size:1.05rem;font-family:var(--sans);font-weight:600;margin-bottom:6px}
+  .tool p{font-size:.92rem;color:var(--muted);margin:0}
+  /* Pipeline / modules */
+  ol.flow{counter-reset:s;list-style:none;padding:0;margin:24px 0 0}
+  ol.flow li{position:relative;padding:18px 0 18px 56px;border-top:1px solid var(--line)}
+  ol.flow li:before{counter-increment:s;content:counter(s,decimal-leading-zero);position:absolute;left:0;top:18px;font-family:var(--mono);font-size:.8rem;color:var(--accent);border:1px solid var(--line);border-radius:8px;width:38px;height:38px;display:grid;place-items:center;background:var(--card)}
+  ol.flow li h3{font-family:var(--sans);font-size:1.02rem;font-weight:600;margin:0 0 4px}
+  ol.flow li p{margin:0;font-size:.93rem;color:var(--muted)}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+  .tag.on{background:#e6f7ec;color:#1c7a43}
+  .tag.off{background:#fdecea;color:#b23b2c}
+  /* Callout */
+  .callout{background:var(--accent-soft);border:1px solid #ddccfa;border-radius:14px;padding:24px 26px;margin-top:8px}
+  .callout p:last-child{margin:0}
+  /* Reflection list */
+  ul.learn{list-style:none;padding:0;margin:8px 0 0}
+  ul.learn li{padding:14px 0 14px 30px;border-top:1px solid var(--line);position:relative;color:var(--muted);max-width:68ch}
+  ul.learn li:before{content:"→";position:absolute;left:0;color:var(--accent);font-family:var(--mono)}
+  ul.learn li b{color:var(--ink);font-weight:600}
+  /* Footer */
+  footer{padding:48px 0 80px}
+  .credit{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
+  .credit .k{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  footer .fine{font-size:.8rem;color:var(--muted);margin-top:22px;text-align:center}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">From-Scratch Build · Observability</p>
+    <h1>Observability Stack with OpenTelemetry</h1>
+    <p class="lede">A full telemetry pipeline built from scratch: an OpenTelemetry Collector scraping host metrics and feeding them into a Grafana LGTM backend — Loki, Grafana, Tempo and Mimir — so I can see exactly what a machine is doing, live, on a dashboard.</p>
+    <div class="meta">
+      <span class="chip">OpenTelemetry</span><span class="chip">Grafana</span><span class="chip">Loki · Tempo · Mimir</span>
+      <span class="chip">OTLP</span><span class="chip">Docker Compose</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">What it is</p>
+    <h2>Metrics, logs and traces in one place</h2>
+    <p><b>Observability</b> is the ability to ask, after the fact, why a system behaved the way it did — using the signals it emits. Those signals come in three flavours: <b>metrics</b> (numbers over time, like CPU usage), <b>logs</b> (timestamped text), and <b>traces</b> (the path of a request through a system). This build wires up a complete pipeline that collects them and puts them on a dashboard.</p>
+    <p>I built it to learn the modern, vendor-neutral way of doing this. <b>OpenTelemetry</b> is the open standard for collecting telemetry; its <b>Collector</b> is a single agent that gathers signals and forwards them anywhere. Here it forwards to <b>Grafana's LGTM stack</b> — an all-in-one image bundling Grafana (the UI), Loki (logs), Tempo (traces) and Mimir (metrics).</p>
+    <div class="callout">
+      <p><b>The core idea I wanted to learn:</b> instrumentation should be decoupled from storage. The Collector speaks the open <b>OTLP</b> protocol, so the thing producing telemetry never needs to know which database eventually stores it. Swap the backend and nothing upstream changes.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The stack</p>
+    <h2>Tools under the hood</h2>
+    <p class="muted">Two containers, one open protocol between them. Here is the role of each piece.</p>
+    <div class="grid">
+      <div class="tool"><div class="t">agent</div><h3>OTel Collector</h3><p>The data-collecting workhorse. It scrapes metrics from configured receivers, batches them, and exports them over OTLP to the backend.</p></div>
+      <div class="tool"><div class="t">receiver</div><h3>hostmetrics</h3><p>Reads the machine's own vitals every 10 seconds — CPU, memory, disk, filesystem, network and load.</p></div>
+      <div class="tool"><div class="t">receiver</div><h3>prometheus</h3><p>A second receiver that scrapes a Prometheus-style endpoint, letting the Collector pull in app metrics alongside host metrics.</p></div>
+      <div class="tool"><div class="t">backend</div><h3>Grafana LGTM</h3><p>An all-in-one image: Grafana for dashboards, plus Loki, Tempo and Mimir as the stores for logs, traces and metrics.</p></div>
+      <div class="tool"><div class="t">protocol</div><h3>OTLP gRPC</h3><p>The OpenTelemetry Line Protocol on port 4317 — the open wire format carrying telemetry from Collector to backend.</p></div>
+      <div class="tool"><div class="t">packaging</div><h3>Docker Compose</h3><p>Runs both containers on a shared network with a persistent volume for Grafana, so dashboards survive restarts.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The pipeline</p>
+    <h2>From a CPU tick to a dashboard</h2>
+    <p>The Collector's config file describes a pipeline in three stages — receivers, processors, exporters. Telemetry flows through it like water through pipes:</p>
+    <ol class="flow">
+      <li><h3>Receive <span class="tag on">live</span></h3><p>The <code>hostmetrics</code> receiver scrapes CPU, memory, disk, filesystem, network and load every 10s; a <code>prometheus</code> receiver pulls a scrape target on the side.</p></li>
+      <li><h3>Process <span class="tag on">live</span></h3><p>A <code>batch</code> processor groups readings together before export, cutting overhead and smoothing out network chatter.</p></li>
+      <li><h3>Export <span class="tag on">live</span></h3><p>The <code>otlp</code> exporter ships the batched metrics over gRPC to the LGTM container at <code>otel-lgtm:4317</code>.</p></li>
+      <li><h3>Store</h3><p>Mimir, inside the LGTM image, persists the metrics; Loki and Tempo stand ready for logs and traces on the same backend.</p></li>
+      <li><h3>Visualise</h3><p>Grafana on port 3000 queries the store and renders dashboards from series like <code>system_cpu_time</code> and <code>system_memory_usage</code>.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">How it runs</p>
+    <h2>Two containers, one command</h2>
+    <p>The stack comes up with a single <code>docker compose up -d</code>; the interesting parts are how the pieces find each other:</p>
+    <ul class="learn">
+      <li><b>The backend:</b> the <code>grafana/otel-lgtm</code> image exposes Grafana on 3000 and OTLP inputs on 4317 (gRPC) and 4318 (HTTP).</li>
+      <li><b>The collector:</b> the second container mounts <code>otel-collector-config.yaml</code> read-only and starts with <code>--config</code> pointed at it.</li>
+      <li><b>The wiring:</b> both join a shared Docker network so the Collector can reach the backend by its container name, and <code>depends_on</code> makes the backend start first.</li>
+      <li><b>Persistence:</b> a named <code>grafana_data</code> volume keeps dashboards and settings across restarts.</li>
+    </ul>
+    <p class="muted" style="margin-top:18px">Grafana opens at <code>localhost:3000</code> with a default <code>admin / admin</code> login, where the live host metrics are ready to chart.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Reflection</p>
+    <h2>What rebuilding it taught me</h2>
+    <ul class="learn">
+      <li><b>The Collector is the keystone.</b> One agent with a receiver/processor/exporter pipeline replaces a tangle of bespoke agents — and its config is just YAML.</li>
+      <li><b>OTLP is the decoupler.</b> Because the open protocol sits between producer and store, the backend becomes a swappable detail rather than a lock-in.</li>
+      <li><b>"LGTM" is four tools in a trench coat.</b> Loki, Grafana, Tempo and Mimir each own one signal; bundling them made standing up a full backend a single image.</li>
+      <li><b>Batching is not optional.</b> The batch processor looks trivial but it's what keeps a 10-second scrape interval from drowning the exporter in tiny requests.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="credit">
+      <div class="k">About this build</div>
+      <p style="margin:0">An original, from-scratch build by <b>Andrea</b> — written to learn how a modern observability pipeline moves metrics from a host, through an OpenTelemetry Collector, into a Grafana dashboard. Plain HTML/CSS, deployed on GitHub Pages.</p>
+    </div>
+    <p class="fine">Built from scratch by Andrea · one of an ongoing series of learning builds.</p>
+  </div>
+</footer>
+</body>
+</html>
